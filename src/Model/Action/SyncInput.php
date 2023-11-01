@@ -138,6 +138,8 @@ class SyncInput extends Action
     {
         $nested = [];
 
+        $updates = $this->mergeUpdates($component, $updates);
+
         foreach ($updates as $update) {
             $property = $update['payload']['name'];
             $value = $update['payload']['value'];
@@ -156,4 +158,49 @@ class SyncInput extends Action
 
         return $nested;
     }
+
+    protected function mergeUpdates(Component $component, array $updates) {
+        $merged = [];
+
+        foreach ($updates as $update) {
+            // Check if the name contains a dot, indicating nested data
+            $property = $update['payload']['name'];
+
+            // If the property doesn't contain a dot, it's not nested and it can be merged as-is
+            if (!$this->propertyHelper->containsDots($property)) {
+                $merged[$property] = $update;
+                continue;
+            }
+
+            $value = $update['payload']['value'];
+
+            try {
+                $transform = $this->propertyHelper->transformDots($property, $value, $component);
+            } catch (ComponentException $exception) {
+                $this->logger->critical($exception->getMessage(), ['exception' => $exception]);
+                continue;
+            }
+
+            $parent = $transform['property'];
+            $child = $transform['path'];
+
+            // Create the parent array if it doesn't exist yet
+            if (!isset($merged[$parent])) {
+                $merged[$parent] = [
+                    'type' => $update['type'],
+                    'payload' => [
+                        'id' => $update['payload']['id'],
+                        'name' => $parent,
+                        'value' => []
+                    ]
+                ];
+            }
+
+            // Assign the child value to the parent array
+            $merged[$parent]['payload']['value'][$child] = $update['payload']['value'];
+        }
+
+        return array_values($merged);  // Return as indexed array
+    }
+
 }
