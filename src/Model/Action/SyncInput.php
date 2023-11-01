@@ -136,30 +136,6 @@ class SyncInput extends Action
 
     protected function reduceProperty(Component $component, array $updates): array
     {
-        $nested = [];
-
-        $updates = $this->mergeUpdates($component, $updates);
-
-        foreach ($updates as $update) {
-            $property = $update['payload']['name'];
-            $value = $update['payload']['value'];
-
-            if ($this->propertyHelper->containsDots($property)) {
-                try {
-                    $transform = $this->propertyHelper->transformDots($property, $value, $component);
-                    $nested[$transform['property']] = $component->{$transform['property']};
-
-                    /** @todo multidimensional array support still needs to be included here. */
-                } catch (ComponentException $exception) {
-                    $this->logger->critical($exception->getMessage(), ['exception' => $exception]);
-                }
-            }
-        }
-
-        return $nested;
-    }
-
-    protected function mergeUpdates(Component $component, array $updates) {
         $merged = [];
 
         foreach ($updates as $update) {
@@ -184,23 +160,9 @@ class SyncInput extends Action
             $parent = $transform['property'];
             $child = $transform['path'];
 
-            // Create the parent array if it doesn't exist yet
-            if (!isset($merged[$parent])) {
-                $merged[$parent] = [
-                    'type' => $update['type'],
-                    'payload' => [
-                        'id' => $update['payload']['id'],
-                        'name' => $parent,
-                        'value' => []
-                    ]
-                ];
-            }
-
-            // Assign the child value to the parent array
-            $merged[$parent]['payload']['value'][$child] = $update['payload']['value'];
+            $merged[$parent][$child] = $value;
         }
 
-        return array_values($merged);  // Return as indexed array
+        return $merged;
     }
-
 }
